@@ -1,0 +1,48 @@
+---
+- hosts: tododb
+  become: yes
+  tasks:
+    - name: set port 27017 for mongodb
+      firewalld:
+          port: 27017/tcp
+          permanent: true
+          immediate: yes
+          state: enabled 
+    - name: setup the requirements for mongo 
+      copy:
+        src: mongodb-org-4.4.repo
+        dest: /etc/yum.repos.d/mongodb-org-4.4.repo
+    - name: Make sure required software is installed
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - tar
+        - mongodb-org
+    - name: Set the interfaces mongo will be using
+      replace:
+        path: /etc/mongod.conf
+        regexp: "bindIp: 127.0.0.1"
+        replace: "bindIp: 0.0.0.0"
+    - name: Validate mongo works
+      systemd:
+        name: mongod
+        state: started
+        enabled: yes
+    - name: Download the mongo export
+      get_url:
+        url: https://acit4640.y.vu/docs/module06/resources/mongodb_ACIT4640.tgz
+        dest: /tmp/mongod_export.tgz
+        username: student
+        password: BCIT2020
+      register: download_mongo_export
+    - name: Unpack mongo export data from tgz file
+      when: download_mongo_export.changed
+      unarchive:
+        remote_src: yes
+        src: /tmp/mongod_export.tgz
+        dest: /tmp
+      register: unpack_mongo_data
+    - name: Import the mongo data from the file
+      when: unpack_mongo_data.changed
+      shell: mongorestore -d ACIT4640 /tmp/ACIT4640

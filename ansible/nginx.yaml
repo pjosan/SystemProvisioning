@@ -1,0 +1,23 @@
+---
+- hosts: todoproxy
+  become: yes
+  tasks:
+    - name: set port for nginx to port 80 
+      firewalld:
+        port: 80/tcp
+        permanent: true
+        immediate: yes
+        state: enabled 
+    - name: Determine if nginx is there 
+      package:
+        name: nginx
+        state: present
+    - name: Provision nginx for deployment 
+      copy:
+        src: nginx.conf
+        dest: /etc/nginx/nginx.conf
+    - name: Determine if nginx is running 
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes

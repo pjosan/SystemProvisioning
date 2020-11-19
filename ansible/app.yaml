@@ -1,0 +1,61 @@
+---
+- hosts: todoapp
+  vars:
+    todoapp_user: todoapp
+  become: yes
+  tasks:
+    - name: we set the tcp port 8080 for the nodejs 
+      firewalld:
+        port: 8080/tcp
+        permanent: true
+        immediate: yes
+        state: enabled 
+    - name: Fulfilling the requirements for NodeJS
+      get_url:
+        url: https://rpm.nodesource.com/setup_14.x
+        dest: /tmp/nodejs_repo_setup
+      register: nodejs_repo_script
+    - name: Setup the nodejs repo
+      when: nodejs_repo_script.changed
+      shell: bash /tmp/nodejs_repo_setup
+    - name: Make sure nodejs is installed
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - git
+        - nodejs
+    - name: Determine if todoapp user exists
+      user:
+        name: "{{ todoapp_user }}"
+    - name: Adjust permissions in todoapp folder
+      become_user: "{{ todoapp_user }}"
+      file:
+        path: /home/{{ todoapp_user }}
+        mode: "0755"
+    - name: Make sure the git-repo is up to date
+      become_user: "{{ todoapp_user }}"
+      git: 
+        repo: https://github.com/timoguic/ACIT4640-todo-app.git
+        dest: /home/{{ todoapp_user }}/app
+    - name: Template out the service file
+      template:
+        src: service.j2
+        dest: /etc/systemd/system/todoapp.service
+    - name: Make sure NPM install is running
+      become_user: "{{ todoapp_user }}"
+      shell: npm install
+      args:
+        chdir: /home/{{ todoapp_user }}/app
+    - name: Make sure the DB settings are correct in app
+      become_user: "{{ todoapp_user }}"
+      replace:
+        path: /home/{{ todoapp_user }}/app/config/database.js
+        regexp: "localhost/CHANGEME"
+        replace: "192.168.150.20/ACIT4640"
+    - name: Make sure todo service is enabled and started
+      become: yes
+      systemd:
+        name: todoapp
+        state: started
+        enabled: yes
